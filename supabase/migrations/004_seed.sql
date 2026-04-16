@@ -105,48 +105,53 @@ on conflict do nothing;
 -- ----------------------------------------------------------------
 do $$
 declare
-  v_user_id uuid := gen_random_uuid();
+  v_user_id uuid;
 begin
-  -- Insert into auth.users (Supabase internal auth table)
-  insert into auth.users (
-    id,
-    instance_id,
-    aud,
-    role,
-    email,
-    encrypted_password,
-    email_confirmed_at,
-    raw_app_meta_data,
-    raw_user_meta_data,
-    created_at,
-    updated_at,
-    confirmation_token,
-    recovery_token,
-    email_change_token_new,
-    email_change
-  ) values (
-    v_user_id,
-    '00000000-0000-0000-0000-000000000000',
-    'authenticated',
-    'authenticated',
-    'admin@mygym.com',
-    crypt('Administrator1!', gen_salt('bf')),
-    now(),
-    '{"provider":"email","providers":["email"]}',
-    '{"name":"Administrator"}',
-    now(),
-    now(),
-    '',
-    '',
-    '',
-    ''
-  )
-  on conflict (email) do nothing;
+  -- Only insert if the user doesn't already exist
+  if not exists (select 1 from auth.users where email = 'admin@mygym.com') then
+    v_user_id := gen_random_uuid();
 
-  -- Create the matching profile row
+    insert into auth.users (
+      id,
+      instance_id,
+      aud,
+      role,
+      email,
+      encrypted_password,
+      email_confirmed_at,
+      raw_app_meta_data,
+      raw_user_meta_data,
+      created_at,
+      updated_at,
+      confirmation_token,
+      recovery_token,
+      email_change_token_new,
+      email_change
+    ) values (
+      v_user_id,
+      '00000000-0000-0000-0000-000000000000',
+      'authenticated',
+      'authenticated',
+      'admin@mygym.com',
+      crypt('Administrator1!', gen_salt('bf')),
+      now(),
+      '{"provider":"email","providers":["email"]}',
+      '{"name":"Administrator"}',
+      now(),
+      now(),
+      '',
+      '',
+      '',
+      ''
+    );
+  else
+    -- User already exists — grab their id for the profile upsert
+    select id into v_user_id from auth.users where email = 'admin@mygym.com';
+  end if;
+
+  -- Upsert the matching profile row
   insert into public.profiles (id, name, fitness_goal, experience_level, weight_unit, default_rest_seconds)
-  select v_user_id, 'Administrator', 'strength', 'advanced', 'kg', 90
-  where exists (select 1 from auth.users where email = 'admin@mygym.com' and id = v_user_id)
+  values (v_user_id, 'Administrator', 'strength', 'advanced', 'kg', 90)
   on conflict (id) do nothing;
 end;
 $$;
