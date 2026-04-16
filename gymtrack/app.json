@@ -1,0 +1,38 @@
+{
+  "expo": {
+    "name": "GymTrack",
+    "slug": "gymtrack",
+    "version": "1.0.0",
+    "scheme": "gymtrack",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0A0A0F"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.gymtrack.app",
+      "infoPlist": {
+        "NSUserNotificationUsageDescription": "GymTrack sends rest timer notifications so you know when to start your next set."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0A0A0F"
+      },
+      "package": "com.gymtrack.app"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-notifications",
+      "expo-secure-store"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
