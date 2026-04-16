@@ -1,16 +1,22 @@
 import { useEffect } from 'react';
-import { client } from '../lib/api';
+import { useNavigate } from 'react-router-dom';
+import { supabase } from '../lib/supabase';
 
 export default function AuthCallback() {
+  const navigate = useNavigate();
+
   useEffect(() => {
-    client.auth.login();
-  }, []);
+    // Supabase automatically reads the hash/code from the URL and stores the session
+    supabase.auth.getSession().then(() => {
+      navigate('/', { replace: true });
+    });
+  }, [navigate]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center">
-      <div className="text-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-        <p className="text-gray-600">Processing authentication...</p>
+    <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="text-center space-y-4">
+        <div className="w-12 h-12 border-2 border-[#6C5CE7] border-t-transparent rounded-full animate-spin mx-auto" />
+        <p className="text-muted-foreground text-sm">Signing you in…</p>
       </div>
     </div>
   );
