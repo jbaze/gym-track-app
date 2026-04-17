@@ -41,20 +41,31 @@ export interface WorkoutExercise {
   defaultSets: number;
   defaultReps: number;
   loggedSets: LoggedSet[];
-  restSeconds?: number;        // per-exercise rest override (falls back to profile default)
-  setDurationSeconds?: number; // 0 = rep-based, >0 = timed set countdown
+  restSeconds?: number;              // rest between sets for this exercise
+  interExerciseRestSeconds?: number; // rest after finishing all sets before next exercise
+  setDurationSeconds?: number;       // 0 = rep-based, >0 = timed set countdown
 }
 
 export interface ActiveWorkout {
   id: string;
   type: WorkoutType;
   startedAt: number;
+  totalPausedMs: number;             // accumulated paused milliseconds
   exercises: WorkoutExercise[];
   currentExerciseIndex: number;
   currentSetNumber: number;
   restTimerStartedAt: number | null;
   restTimerDuration: number;
   isResting: boolean;
+}
+
+export interface WorkoutPlan {
+  id: string;
+  name: string;
+  icon: string;
+  color: string;
+  exercises: Pick<WorkoutExercise, "exerciseId" | "defaultSets" | "defaultReps" | "restSeconds" | "interExerciseRestSeconds" | "setDurationSeconds">[];
+  createdAt: number;
 }
 
 export interface CompletedWorkout {
@@ -287,7 +298,17 @@ const KEYS = {
   history: "gymtrack_history",
   bodyWeight: "gymtrack_body_weight",
   streak: "gymtrack_streak",
+  plans: "gymtrack_plans",
 };
+
+export function saveWorkoutPlans(plans: WorkoutPlan[]): void {
+  localStorage.setItem(KEYS.plans, JSON.stringify(plans));
+}
+
+export function loadWorkoutPlans(): WorkoutPlan[] {
+  const data = localStorage.getItem(KEYS.plans);
+  return data ? JSON.parse(data) : [];
+}
 
 export function saveProfile(profile: UserProfile): void {
   localStorage.setItem(KEYS.profile, JSON.stringify(profile));

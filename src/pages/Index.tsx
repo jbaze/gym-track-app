@@ -38,7 +38,6 @@ export default function Index() {
     setProfileLoading(true);
     const dbProfile = await fetchProfile();
     if (dbProfile) {
-      // Map DB profile to local UserProfile shape
       const mapped: UserProfile = {
         name: dbProfile.name ?? "Athlete",
         fitnessGoal: (dbProfile.fitness_goal as UserProfile["fitnessGoal"]) ?? "Hypertrophy",
@@ -48,9 +47,15 @@ export default function Index() {
         createdAt: new Date(dbProfile.created_at).getTime(),
       };
       setProfile(mapped);
-      setScreen("main");
+      // Restore in-progress workout first — takes priority over the normal home screen
+      const active = loadActiveWorkout();
+      if (active) {
+        setResumeWorkout(active);
+        setScreen("workout");
+      } else {
+        setScreen("main");
+      }
     } else {
-      // No profile yet — show onboarding profile setup
       setProfile(null);
       setScreen("onboarding");
     }
@@ -58,14 +63,12 @@ export default function Index() {
   }, []);
 
   useEffect(() => {
-    // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setAuthLoading(false);
       if (session) loadSupabaseProfile();
     });
 
-    // Listen for auth changes (login, logout, token refresh)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       if (session) {
@@ -78,15 +81,6 @@ export default function Index() {
 
     return () => subscription.unsubscribe();
   }, [loadSupabaseProfile]);
-
-  // Check for in-progress workout on mount
-  useEffect(() => {
-    const active = loadActiveWorkout();
-    if (active) {
-      setResumeWorkout(active);
-      setScreen("workout");
-    }
-  }, []);
 
   const handleOnboardingComplete = useCallback(async (newProfile: UserProfile) => {
     // Save to Supabase
