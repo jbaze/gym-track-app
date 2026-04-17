@@ -29,7 +29,7 @@ interface WorkoutFlowProps {
   resumeWorkout?: ActiveWorkout | null;
 }
 
-type FlowStep = "select-type" | "exercise-list" | "active" | "rest" | "inter-exercise-rest" | "complete";
+type FlowStep = "select-type" | "exercise-list" | "active" | "rest" | "inter-exercise-rest" | "rep-timer" | "complete";
 
 // ---------- SET SPINNER ----------
 function SetSpinner({
@@ -279,6 +279,115 @@ function MiniRestTimer({ duration, startedAt, isPaused, onSkip, onExpand }: {
         Skip
       </div>
     </button>
+  );
+}
+
+// ---------- REP TIMER CIRCLE ----------
+function RepTimerCircle({ duration, startedAt, onDone, exerciseName, setNum, totalSets, weight, reps, unit, isPaused }: {
+  duration: number; startedAt: number; onDone: () => void;
+  exerciseName: string; setNum: number; totalSets: number;
+  weight: number; reps: number; unit: string; isPaused?: boolean;
+}) {
+  const [remaining, setRemaining] = useState(duration);
+  const circumference = 2 * Math.PI * 90;
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const lastBeepedRef = useRef<number>(-1);
+  const firedRef = useRef(false);
+  // Keep onDone up-to-date without making it a timer effect dep (prevents timer restarts)
+  const onDoneRef = useRef(onDone);
+  useEffect(() => { onDoneRef.current = onDone; }, [onDone]);
+
+  useEffect(() => {
+    firedRef.current = false;
+    lastBeepedRef.current = -1;
+    const interval = setInterval(() => {
+      if (isPaused) return;
+      const elapsed = (Date.now() - startedAt) / 1000;
+      const r = Math.max(0, duration - elapsed);
+      setRemaining(r);
+
+      const countdownSec = Math.ceil(r);
+      if (r <= 5 && countdownSec !== lastBeepedRef.current) {
+        lastBeepedRef.current = countdownSec;
+        if (!audioCtxRef.current) audioCtxRef.current = new AudioContext();
+        const ctx = audioCtxRef.current;
+        if (countdownSec === 0) {
+          playBeep(ctx, 880, 0.15); setTimeout(() => playBeep(ctx, 1100, 0.25), 180);
+        } else {
+          playBeep(ctx, 660 + (5 - countdownSec) * 30, 0.08);
+        }
+      }
+
+      if (r <= 0 && !firedRef.current) {
+        firedRef.current = true;
+        clearInterval(interval);
+        onDoneRef.current();
+      }
+    }, 100);
+    return () => clearInterval(interval);
+  }, [duration, startedAt, isPaused]);
+
+  const progress = remaining / duration;
+  const offset = circumference * (1 - progress);
+  const mins = Math.floor(remaining / 60);
+  const secs = Math.floor(remaining % 60);
+  const isCountdown = remaining <= 5 && remaining > 0;
+
+  return (
+    <div className="min-h-screen bg-background flex flex-col items-center justify-center px-6 animate-fade-in">
+      <p className="text-[#FFD93D] text-xs font-semibold uppercase tracking-widest mb-1">Set {setNum} of {totalSets}</p>
+      <p className="text-lg font-semibold mb-8 text-center">{exerciseName}</p>
+
+      <div className="relative w-52 h-52 mb-8">
+        <svg className="w-full h-full -rotate-90" viewBox="0 0 200 200">
+          <circle cx="100" cy="100" r="90" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="8" />
+          <circle
+            cx="100" cy="100" r="90" fill="none"
+            stroke={isPaused ? "#8B8BA3" : isCountdown ? "#FF6B6B" : "#FFD93D"} strokeWidth="8" strokeLinecap="round"
+            strokeDasharray={circumference}
+            strokeDashoffset={offset}
+            className="transition-all duration-100"
+          />
+        </svg>
+        <div className="absolute inset-0 flex flex-col items-center justify-center">
+          {isPaused ? (
+            <span className="text-3xl font-bold text-[#8B8BA3]">PAUSED</span>
+          ) : (
+            <>
+              <span className={`text-5xl font-bold tabular-nums transition-colors ${isCountdown ? "text-[#FF6B6B]" : "text-[#FFD93D]"}`}>
+                {mins}:{secs.toString().padStart(2, "0")}
+              </span>
+              {isCountdown && (
+                <span className="text-xs text-[#FF6B6B] font-semibold mt-1 animate-pulse">FINISH!</span>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Weight / reps info */}
+      <div className="flex gap-4 mb-8">
+        {weight > 0 && (
+          <div className="bg-card border border-white/5 rounded-xl px-5 py-3 text-center">
+            <p className="text-xs text-muted-foreground mb-1">Weight</p>
+            <p className="text-lg font-bold">{weight}<span className="text-xs text-muted-foreground ml-1">{unit}</span></p>
+          </div>
+        )}
+        <div className="bg-card border border-white/5 rounded-xl px-5 py-3 text-center">
+          <p className="text-xs text-muted-foreground mb-1">Reps</p>
+          <p className="text-lg font-bold">{reps}</p>
+        </div>
+      </div>
+
+      <Button
+        onClick={onDone}
+        variant="outline"
+        className="h-14 px-8 rounded-xl border-white/10 text-base font-semibold hover:bg-white/5"
+      >
+        <Check className="w-5 h-5 mr-2" />
+        Done Early
+      </Button>
+    </div>
   );
 }
 
@@ -617,14 +726,13 @@ export default function WorkoutFlow({ profile, initialType, onComplete, onCancel
   const [weightStep, setWeightStep] = useState(2.5);
   const [elapsedTime, setElapsedTime] = useState("00:00");
   const [setStartedAt, setSetStartedAt] = useState(Date.now());
+  const [repTimerStartedAt, setRepTimerStartedAt] = useState<number | null>(null);
   const [showLibrary, setShowLibrary] = useState(false);
   const [showReplaceFor, setShowReplaceFor] = useState<number | null>(null);
   const [expandedExercise, setExpandedExercise] = useState<string | null>(null);
   const [completedWorkout, setCompletedWorkout] = useState<CompletedWorkout | null>(null);
   const [showUpcoming, setShowUpcoming] = useState(false);
-  const [timedRemaining, setTimedRemaining] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const autoLoggedRef = useRef(false);
 
   // Pause / Resume
   const [isPaused, setIsPaused] = useState(false);
@@ -670,25 +778,6 @@ export default function WorkoutFlow({ profile, initialType, onComplete, onCancel
       return () => { if (timerRef.current) clearInterval(timerRef.current); };
     }
   }, [activeWorkout, step, isPaused, totalPausedMs]);
-
-  // Timed set countdown + auto-log — pauses when isPaused
-  useEffect(() => {
-    const setDuration = exercises[currentExIdx]?.setDurationSeconds ?? 0;
-    if (setDuration <= 0 || step !== "active") return;
-    autoLoggedRef.current = false;
-    setTimedRemaining(setDuration);
-    const iv = setInterval(() => {
-      if (isPaused) return;
-      const remaining = Math.max(0, setDuration - (Date.now() - setStartedAt) / 1000);
-      setTimedRemaining(remaining);
-      if (remaining <= 0 && !autoLoggedRef.current) {
-        autoLoggedRef.current = true;
-        clearInterval(iv);
-        handleLogSet();
-      }
-    }, 100);
-    return () => clearInterval(iv);
-  }, [currentExIdx, setStartedAt, step, isPaused]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Persist active workout
   useEffect(() => {
@@ -886,44 +975,69 @@ export default function WorkoutFlow({ profile, initialType, onComplete, onCancel
     // User can tap it to expand to full-screen rest view.
   };
 
+  // ---------- START / COMPLETE REP TIMER ----------
+  const handleStartRepTimer = () => {
+    setRepTimerStartedAt(Date.now());
+    setStep("rep-timer");
+  };
+
+  const handleRepTimerDone = () => {
+    handleLogSet();
+    setStep("active");
+  };
+
   // ---------- REST COMPLETE ----------
   const handleRestComplete = useCallback(() => {
     if (!activeWorkout) return;
     setActiveWorkout({ ...activeWorkout, isResting: false, restTimerStartedAt: null });
 
-    // Check if all target sets are done for current exercise
     const ex = exercises[currentExIdx];
     if (ex && ex.loggedSets.length >= ex.defaultSets) {
       // All sets done — advance to next exercise
       if (currentExIdx < exercises.length - 1) {
         const interRest = ex.interExerciseRestSeconds ?? 0;
         if (interRest > 0) {
-          // Show inter-exercise rest screen
           setInterExRestDuration(interRest);
           setInterExRestStartedAt(Date.now());
           setInterExNextIdx(currentExIdx + 1);
           setStep("inter-exercise-rest");
         } else {
+          const nextEx = exercises[currentExIdx + 1];
           setCurrentExIdx(currentExIdx + 1);
           setSetStartedAt(Date.now());
-          setStep("active");
+          if ((nextEx?.setDurationSeconds ?? 0) > 0) {
+            setRepTimerStartedAt(Date.now());
+            setStep("rep-timer");
+          } else {
+            setStep("active");
+          }
         }
       } else {
-        // Last exercise done — go to finish
         handleFinishWorkout();
       }
     } else {
       setSetStartedAt(Date.now());
-      setStep("active");
+      if ((ex?.setDurationSeconds ?? 0) > 0) {
+        setRepTimerStartedAt(Date.now());
+        setStep("rep-timer");
+      } else {
+        setStep("active");
+      }
     }
   }, [activeWorkout, exercises, currentExIdx]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ---------- INTER-EXERCISE REST COMPLETE ----------
   const handleInterExRestComplete = useCallback(() => {
+    const nextEx = exercises[interExNextIdx];
     setCurrentExIdx(interExNextIdx);
     setSetStartedAt(Date.now());
-    setStep("active");
-  }, [interExNextIdx]);
+    if ((nextEx?.setDurationSeconds ?? 0) > 0) {
+      setRepTimerStartedAt(Date.now());
+      setStep("rep-timer");
+    } else {
+      setStep("active");
+    }
+  }, [interExNextIdx, exercises]);
 
   // ---------- NEXT / PREV EXERCISE ----------
   const handleNextExercise = () => {
@@ -1577,6 +1691,54 @@ export default function WorkoutFlow({ profile, initialType, onComplete, onCancel
   }
 
   // ============================================================
+  // RENDER: REP TIMER
+  // ============================================================
+  if (step === "rep-timer" && currentExercise && repTimerStartedAt !== null) {
+    return (
+      <>
+        {/* Top bar with pause/finish */}
+        <div className="fixed top-0 left-0 right-0 z-10 flex items-center justify-between px-4 py-3 border-b border-white/5 bg-background">
+          <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+            <Clock className="w-3.5 h-3.5" />
+            <span className="tabular-nums font-medium">{isPaused ? "PAUSED" : elapsedTime}</span>
+          </div>
+          <button
+            onClick={isPaused ? handleResume : handlePause}
+            className={`touch-target flex items-center justify-center ${isPaused ? "text-[#00E676]" : "text-muted-foreground"}`}
+          >
+            {isPaused ? <Play className="w-5 h-5" /> : <Pause className="w-5 h-5" />}
+          </button>
+          <button onClick={handleFinishWorkout} className="touch-target flex items-center justify-center text-red-400">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+        {isPaused && (
+          <div className="fixed inset-0 z-40 bg-background/80 backdrop-blur-sm flex flex-col items-center justify-center gap-6">
+            <p className="text-4xl font-bold text-[#8B8BA3] tracking-widest">PAUSED</p>
+            <Button onClick={handleResume} className="h-14 px-10 gym-gradient text-white font-bold text-base rounded-xl hover:opacity-90">
+              <Play className="w-5 h-5 mr-2" />Resume
+            </Button>
+          </div>
+        )}
+        <div className="pt-16">
+          <RepTimerCircle
+            duration={currentExercise.setDurationSeconds!}
+            startedAt={repTimerStartedAt}
+            onDone={handleRepTimerDone}
+            exerciseName={currentExercise.exercise.name}
+            setNum={currentExercise.loggedSets.length + 1}
+            totalSets={currentExercise.defaultSets}
+            weight={weight}
+            reps={reps}
+            unit={unit}
+            isPaused={isPaused}
+          />
+        </div>
+      </>
+    );
+  }
+
+  // ============================================================
   // RENDER: COMPLETE
   // ============================================================
   if (step === "complete" && completedWorkout) {
@@ -1598,7 +1760,7 @@ export default function WorkoutFlow({ profile, initialType, onComplete, onCancel
   const totalSetsTarget = currentExercise.defaultSets;
   const isTimedSet = (currentExercise.setDurationSeconds ?? 0) > 0;
   const setTimerDisplay = isTimedSet
-    ? formatTime(timedRemaining * 1000)
+    ? `${currentExercise.setDurationSeconds}s`
     : formatTime(isPaused ? 0 : Date.now() - setStartedAt);
 
   return (
@@ -1688,10 +1850,10 @@ export default function WorkoutFlow({ profile, initialType, onComplete, onCancel
             <p className="text-sm font-medium">
               Set <span className="text-[#6C5CE7]">{setsLogged + 1}</span> of {totalSetsTarget}
             </p>
-            <div className={`flex items-center gap-1.5 text-xs ${isTimedSet ? "text-[#6C5CE7] font-semibold" : "text-muted-foreground"}`}>
+            <div className={`flex items-center gap-1.5 text-xs ${isTimedSet ? "text-[#FFD93D] font-semibold" : "text-muted-foreground"}`}>
               <Clock className="w-3 h-3" />
               <span className="tabular-nums">{setTimerDisplay}</span>
-              {isTimedSet && <span className="text-[10px] text-muted-foreground">left</span>}
+              {isTimedSet && <span className="text-[10px] text-muted-foreground">/ set</span>}
             </div>
           </div>
 
@@ -1757,12 +1919,17 @@ export default function WorkoutFlow({ profile, initialType, onComplete, onCancel
 
           {/* Log Set Button — disabled while resting */}
           <Button
-            onClick={handleLogSet}
+            onClick={isTimedSet ? handleStartRepTimer : handleLogSet}
             disabled={!!(activeWorkout?.isResting)}
             className="w-full h-14 gym-gradient text-white font-bold text-lg rounded-xl hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-40"
           >
-            <Check className="w-6 h-6 mr-2" />
-            {activeWorkout?.isResting ? "Resting…" : "Log Set"}
+            {activeWorkout?.isResting ? (
+              <><Clock className="w-6 h-6 mr-2" />Resting…</>
+            ) : isTimedSet ? (
+              <><Play className="w-6 h-6 mr-2" />Start {currentExercise.setDurationSeconds}s Set</>
+            ) : (
+              <><Check className="w-6 h-6 mr-2" />Log Set</>
+            )}
           </Button>
         </div>
 
