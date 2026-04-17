@@ -195,6 +195,93 @@ function RestTimerCircle({ duration, startedAt, onSkip, nextExercise, lastSet, s
   );
 }
 
+// ---------- MINI REST TIMER (inline on active workout screen) ----------
+function MiniRestTimer({ duration, startedAt, isPaused, onSkip, onExpand }: {
+  duration: number; startedAt: number; isPaused: boolean;
+  onSkip: () => void; onExpand: () => void;
+}) {
+  const [remaining, setRemaining] = useState(duration);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const lastBeepedRef = useRef<number>(-1);
+
+  useEffect(() => {
+    lastBeepedRef.current = -1;
+    const iv = setInterval(() => {
+      if (isPaused) return;
+      const r = Math.max(0, duration - (Date.now() - startedAt) / 1000);
+      setRemaining(r);
+
+      const countdownSec = Math.ceil(r);
+      if (r <= 5 && countdownSec !== lastBeepedRef.current) {
+        lastBeepedRef.current = countdownSec;
+        if (!audioCtxRef.current) audioCtxRef.current = new AudioContext();
+        const ctx = audioCtxRef.current;
+        if (countdownSec === 0) {
+          playBeep(ctx, 880, 0.15); setTimeout(() => playBeep(ctx, 1100, 0.25), 180);
+        } else {
+          playBeep(ctx, 660 + (5 - countdownSec) * 30, 0.08);
+        }
+      }
+
+      if (r <= 0) onSkip();
+    }, 100);
+    return () => clearInterval(iv);
+  }, [duration, startedAt, isPaused, onSkip]);
+
+  const progress = remaining / duration;
+  const circumference = 2 * Math.PI * 18;
+  const offset = circumference * (1 - progress);
+  const mins = Math.floor(remaining / 60);
+  const secs = Math.floor(remaining % 60);
+  const isCountdown = remaining <= 5 && remaining > 0;
+  const color = isPaused ? "#8B8BA3" : isCountdown ? "#00E676" : "#6C5CE7";
+
+  return (
+    <button
+      onClick={onExpand}
+      className="w-full flex items-center gap-3 bg-[#6C5CE7]/10 border border-[#6C5CE7]/20 rounded-xl px-4 py-3 active:bg-[#6C5CE7]/15 transition-colors"
+    >
+      {/* Mini circle */}
+      <div className="relative w-11 h-11 shrink-0">
+        <svg className="w-full h-full -rotate-90" viewBox="0 0 44 44">
+          <circle cx="22" cy="22" r="18" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="3.5" />
+          <circle cx="22" cy="22" r="18" fill="none" stroke={color} strokeWidth="3.5" strokeLinecap="round"
+            strokeDasharray={circumference} strokeDashoffset={offset}
+            className="transition-all duration-100"
+          />
+        </svg>
+        <div className="absolute inset-0 flex items-center justify-center">
+          <span className={`text-[10px] font-bold tabular-nums ${isCountdown ? "text-[#00E676]" : "text-white"}`}>
+            {mins}:{secs.toString().padStart(2, "0")}
+          </span>
+        </div>
+      </div>
+
+      {/* Progress bar */}
+      <div className="flex-1 space-y-1 text-left">
+        <p className="text-xs font-medium text-[#A29BFE]">
+          {isPaused ? "Rest paused" : isCountdown ? "Get ready!" : "Resting…"}
+        </p>
+        <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
+          <div
+            className="h-full rounded-full transition-all duration-100"
+            style={{ width: `${progress * 100}%`, backgroundColor: color }}
+          />
+        </div>
+      </div>
+
+      {/* Skip */}
+      <div
+        role="button"
+        onClick={(e) => { e.stopPropagation(); onSkip(); }}
+        className="text-xs text-muted-foreground bg-white/5 rounded-lg px-3 py-1.5 active:bg-white/10 shrink-0"
+      >
+        Skip
+      </div>
+    </button>
+  );
+}
+
 // ---------- EXERCISE LIBRARY MODAL ----------
 function ExerciseLibrary({ onAdd, onClose, existingIds, replaceMode = false }: {
   onAdd: (exercise: Exercise) => void; onClose: () => void; existingIds: string[];
@@ -787,7 +874,7 @@ export default function WorkoutFlow({ profile, initialType, onComplete, onCancel
     };
     setExercises(updated);
 
-    // Enter rest
+    // Start rest — stay on active screen, mini timer appears inline
     if (activeWorkout) {
       setActiveWorkout({
         ...activeWorkout,
@@ -795,7 +882,8 @@ export default function WorkoutFlow({ profile, initialType, onComplete, onCancel
         isResting: true,
       });
     }
-    setStep("rest");
+    // Do NOT switch to "rest" step; the MiniRestTimer renders inside the active screen.
+    // User can tap it to expand to full-screen rest view.
   };
 
   // ---------- REST COMPLETE ----------
@@ -1656,13 +1744,25 @@ export default function WorkoutFlow({ profile, initialType, onComplete, onCancel
             </div>
           )}
 
-          {/* Log Set Button */}
+          {/* Inline rest timer — visible while resting, tap to go full-screen */}
+          {activeWorkout?.isResting && activeWorkout.restTimerStartedAt && (
+            <MiniRestTimer
+              duration={currentExercise.restSeconds ?? profile.restTimerDuration}
+              startedAt={activeWorkout.restTimerStartedAt}
+              isPaused={isPaused}
+              onSkip={handleRestComplete}
+              onExpand={() => setStep("rest")}
+            />
+          )}
+
+          {/* Log Set Button — disabled while resting */}
           <Button
             onClick={handleLogSet}
-            className="w-full h-14 gym-gradient text-white font-bold text-lg rounded-xl hover:opacity-90 active:scale-[0.98] transition-all"
+            disabled={!!(activeWorkout?.isResting)}
+            className="w-full h-14 gym-gradient text-white font-bold text-lg rounded-xl hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-40"
           >
             <Check className="w-6 h-6 mr-2" />
-            Log Set
+            {activeWorkout?.isResting ? "Resting…" : "Log Set"}
           </Button>
         </div>
 
