@@ -208,7 +208,7 @@ export default function Index() {
           <ProgressScreen history={history} profile={profile} />
         )}
         {activeTab === "profile" && (
-          <ProfileScreen profile={profile} history={history} onProfileUpdate={handleProfileUpdate} onLogout={handleLogout} />
+          <ProfileScreen profile={profile} history={history} onProfileUpdate={handleProfileUpdate} onLogout={handleLogout} onStartWorkout={handleStartWorkout} />
         )}
       </div>
 

@@ -12,7 +12,7 @@ import {
   WORKOUT_TYPES, EXERCISE_DATABASE, MUSCLE_GROUPS,
   getExercisesForWorkout, generateId, formatTime, formatDuration,
   getAISuggestion, loadWorkoutHistory, saveActiveWorkout, loadActiveWorkout,
-  saveWorkoutPlans, loadWorkoutPlans,
+  saveWorkoutPlans, loadWorkoutPlans, getAllExercises,
 } from "@/lib/gymData";
 
 const CELEBRATION_IMAGE = "https://mgx-backend-cdn.metadl.com/generate/images/1042595/2026-04-16/mwqbdliaafbq/workout-complete-celebration.png";
@@ -202,7 +202,7 @@ function ExerciseLibrary({ onAdd, onClose, existingIds, replaceMode = false }: {
   const [search, setSearch] = useState("");
   const [muscleFilter, setMuscleFilter] = useState<string | null>(null);
 
-  const filtered = EXERCISE_DATABASE.filter((e) => {
+  const filtered = getAllExercises().filter((e) => {
     if (!replaceMode && existingIds.includes(e.id)) return false;
     if (search && !e.name.toLowerCase().includes(search.toLowerCase())) return false;
     if (muscleFilter && e.primaryMuscle !== muscleFilter) return false;

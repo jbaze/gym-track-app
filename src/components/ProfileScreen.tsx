@@ -1,15 +1,15 @@
 import { useState } from "react";
 import {
   User, Settings, LogOut, ChevronRight, Dumbbell, Trophy,
-  Flame, Calendar, Weight, Clock, Search, Filter,
+  Flame, Weight, Clock, Search, Filter, Plus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   UserProfile, CompletedWorkout, Exercise,
-  EXERCISE_DATABASE, MUSCLE_GROUPS, EQUIPMENT_TYPES,
-  saveProfile, setOnboarded, getCurrentStreak, formatDuration,
-  upsertProfile,
+  MUSCLE_GROUPS, EQUIPMENT_TYPES,
+  saveProfile, getCurrentStreak, formatDuration,
+  upsertProfile, getAllExercises, loadCustomExercises, saveCustomExercises, generateId,
 } from "@/lib/gymData";
 import { supabase } from "@/lib/supabase";
 
@@ -18,14 +18,15 @@ interface ProfileScreenProps {
   history: CompletedWorkout[];
   onProfileUpdate: (profile: UserProfile) => void;
   onLogout: () => void;
+  onStartWorkout: () => void;
 }
 
-type View = "profile" | "settings" | "library" | "exercise-detail";
+type View = "profile" | "settings" | "library" | "exercise-detail" | "add-exercise";
 
 const fitnessGoals = ["Strength", "Hypertrophy", "Endurance", "Weight Loss"] as const;
 const experienceLevels = ["Beginner", "Intermediate", "Advanced"] as const;
 
-export default function ProfileScreen({ profile, history, onProfileUpdate, onLogout }: ProfileScreenProps) {
+export default function ProfileScreen({ profile, history, onProfileUpdate, onLogout, onStartWorkout }: ProfileScreenProps) {
   const [view, setView] = useState<View>("profile");
   const [editGoal, setEditGoal] = useState(profile.fitnessGoal);
   const [editLevel, setEditLevel] = useState(profile.experienceLevel);
@@ -37,6 +38,35 @@ export default function ProfileScreen({ profile, history, onProfileUpdate, onLog
   const [libMuscle, setLibMuscle] = useState<string | null>(null);
   const [libEquipment, setLibEquipment] = useState<string | null>(null);
   const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(null);
+  const [allExercises, setAllExercises] = useState<Exercise[]>(() => getAllExercises());
+
+  // New exercise form state
+  const [newName, setNewName] = useState("");
+  const [newMuscle, setNewMuscle] = useState(MUSCLE_GROUPS[0]);
+  const [newSecondary, setNewSecondary] = useState<string[]>([]);
+  const [newEquipment, setNewEquipment] = useState<Exercise["equipment"]>("Dumbbell");
+  const [newIsBodyweight, setNewIsBodyweight] = useState(false);
+  const [newDescription, setNewDescription] = useState("");
+
+  const handleAddExercise = () => {
+    if (!newName.trim()) return;
+    const exercise: Exercise = {
+      id: generateId(),
+      name: newName.trim(),
+      primaryMuscle: newMuscle,
+      secondaryMuscles: newSecondary,
+      equipment: newEquipment,
+      isBodyweight: newIsBodyweight,
+      description: newDescription.trim() || `${newName.trim()} — custom exercise`,
+    };
+    const custom = [...loadCustomExercises(), exercise];
+    saveCustomExercises(custom);
+    setAllExercises(getAllExercises());
+    // Reset form
+    setNewName(""); setNewMuscle(MUSCLE_GROUPS[0]); setNewSecondary([]);
+    setNewEquipment("Dumbbell"); setNewIsBodyweight(false); setNewDescription("");
+    setView("library");
+  };
 
   const totalWorkouts = history.length;
   const totalVolume = history.reduce((sum, w) => sum + w.totalVolume, 0);
@@ -74,7 +104,7 @@ export default function ProfileScreen({ profile, history, onProfileUpdate, onLog
   };
 
   // Library filtering
-  const filteredExercises = EXERCISE_DATABASE.filter((e) => {
+  const filteredExercises = allExercises.filter((e) => {
     if (libSearch && !e.name.toLowerCase().includes(libSearch.toLowerCase())) return false;
     if (libMuscle && e.primaryMuscle !== libMuscle) return false;
     if (libEquipment && e.equipment !== libEquipment) return false;
@@ -130,6 +160,127 @@ export default function ProfileScreen({ profile, history, onProfileUpdate, onLog
     );
   }
 
+  // ---------- ADD EXERCISE ----------
+  if (view === "add-exercise") {
+    return (
+      <div className="safe-bottom px-4 pt-2 pb-8 animate-slide-up">
+        <div className="flex items-center gap-3 mb-6">
+          <button onClick={() => setView("library")} className="touch-target flex items-center justify-center">
+            <ChevronRight className="w-5 h-5 rotate-180" />
+          </button>
+          <h1 className="text-xl font-bold">New Exercise</h1>
+        </div>
+
+        <div className="space-y-5">
+          {/* Name */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-muted-foreground">Exercise Name *</label>
+            <Input
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              placeholder="e.g. Bulgarian Split Squat"
+              className="h-11 bg-card border-white/10 rounded-xl"
+            />
+          </div>
+
+          {/* Primary Muscle */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-muted-foreground">Primary Muscle *</label>
+            <div className="flex flex-wrap gap-2">
+              {MUSCLE_GROUPS.map((m) => (
+                <button
+                  key={m}
+                  onClick={() => setNewMuscle(m)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                    newMuscle === m ? "gym-gradient text-white" : "bg-white/5 text-muted-foreground"
+                  }`}
+                >
+                  {m}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Secondary Muscles */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-muted-foreground">Secondary Muscles</label>
+            <div className="flex flex-wrap gap-2">
+              {MUSCLE_GROUPS.filter((m) => m !== newMuscle).map((m) => (
+                <button
+                  key={m}
+                  onClick={() => setNewSecondary((prev) =>
+                    prev.includes(m) ? prev.filter((x) => x !== m) : [...prev, m]
+                  )}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                    newSecondary.includes(m) ? "bg-[#00E676]/20 text-[#00E676]" : "bg-white/5 text-muted-foreground"
+                  }`}
+                >
+                  {m}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Equipment */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-muted-foreground">Equipment *</label>
+            <div className="flex flex-wrap gap-2">
+              {EQUIPMENT_TYPES.map((eq) => (
+                <button
+                  key={eq}
+                  onClick={() => {
+                    setNewEquipment(eq);
+                    if (eq === "Bodyweight") setNewIsBodyweight(true);
+                    else setNewIsBodyweight(false);
+                  }}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                    newEquipment === eq ? "bg-[#FFD93D]/20 text-[#FFD93D]" : "bg-white/5 text-muted-foreground"
+                  }`}
+                >
+                  {eq}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Bodyweight toggle (auto-set when Bodyweight equipment, but can override) */}
+          <div className="flex items-center justify-between bg-card border border-white/10 rounded-xl px-4 py-3">
+            <div>
+              <p className="text-sm font-medium">Bodyweight exercise</p>
+              <p className="text-xs text-muted-foreground">No weight input needed</p>
+            </div>
+            <button
+              onClick={() => setNewIsBodyweight((v) => !v)}
+              className={`w-12 h-6 rounded-full transition-all relative ${newIsBodyweight ? "bg-[#6C5CE7]" : "bg-white/10"}`}
+            >
+              <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all ${newIsBodyweight ? "left-6" : "left-0.5"}`} />
+            </button>
+          </div>
+
+          {/* Description */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-muted-foreground">Notes / Description (optional)</label>
+            <textarea
+              value={newDescription}
+              onChange={(e) => setNewDescription(e.target.value)}
+              placeholder="How to perform, tips..."
+              className="w-full h-20 bg-card border border-white/10 rounded-xl p-3 text-sm resize-none placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-[#6C5CE7]/50"
+            />
+          </div>
+
+          <Button
+            onClick={handleAddExercise}
+            disabled={!newName.trim()}
+            className="w-full h-12 gym-gradient text-white font-semibold rounded-xl hover:opacity-90 disabled:opacity-50"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Add Exercise
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   // ---------- EXERCISE LIBRARY ----------
   if (view === "library") {
     return (
@@ -141,10 +292,17 @@ export default function ProfileScreen({ profile, history, onProfileUpdate, onLog
           >
             <ChevronRight className="w-5 h-5 rotate-180" />
           </button>
-          <h1 className="text-xl font-bold">Exercise Library</h1>
+          <h1 className="text-xl font-bold flex-1">Exercise Library</h1>
           <span className="text-xs text-muted-foreground bg-white/5 px-2 py-1 rounded-full">
-            {EXERCISE_DATABASE.length} exercises
+            {allExercises.length}
           </span>
+          <button
+            onClick={() => setView("add-exercise")}
+            className="flex items-center gap-1.5 bg-[#6C5CE7]/10 text-[#A29BFE] text-xs font-medium px-3 py-1.5 rounded-full active:bg-[#6C5CE7]/20 transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Add New
+          </button>
         </div>
 
         <div className="relative mb-3">
@@ -199,26 +357,32 @@ export default function ProfileScreen({ profile, history, onProfileUpdate, onLog
         <p className="text-xs text-muted-foreground mb-2">{filteredExercises.length} results</p>
 
         <div className="space-y-1">
-          {filteredExercises.map((exercise) => (
-            <button
-              key={exercise.id}
-              onClick={() => { setSelectedExercise(exercise); setView("exercise-detail"); }}
-              className="w-full flex items-center gap-3 py-3 border-b border-white/5 text-left active:bg-white/5 transition-colors"
-            >
-              <div className="w-10 h-10 rounded-lg bg-[#6C5CE7]/10 flex items-center justify-center shrink-0">
-                <Dumbbell className="w-4 h-4 text-[#6C5CE7]" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-medium text-sm truncate">{exercise.name}</p>
-                <p className="text-xs text-muted-foreground">
-                  {exercise.primaryMuscle}
-                  {exercise.secondaryMuscles.length > 0 && ` · ${exercise.secondaryMuscles[0]}`}
-                  {" · "}{exercise.equipment}
-                </p>
-              </div>
-              <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
-            </button>
-          ))}
+          {filteredExercises.map((exercise) => {
+            const isCustom = loadCustomExercises().some((c) => c.id === exercise.id);
+            return (
+              <button
+                key={exercise.id}
+                onClick={() => { setSelectedExercise(exercise); setView("exercise-detail"); }}
+                className="w-full flex items-center gap-3 py-3 border-b border-white/5 text-left active:bg-white/5 transition-colors"
+              >
+                <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${isCustom ? "bg-[#00E676]/10" : "bg-[#6C5CE7]/10"}`}>
+                  <Dumbbell className={`w-4 h-4 ${isCustom ? "text-[#00E676]" : "text-[#6C5CE7]"}`} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <p className="font-medium text-sm truncate">{exercise.name}</p>
+                    {isCustom && <span className="text-[9px] bg-[#00E676]/10 text-[#00E676] px-1.5 py-0.5 rounded-full font-semibold shrink-0">CUSTOM</span>}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {exercise.primaryMuscle}
+                    {exercise.secondaryMuscles.length > 0 && ` · ${exercise.secondaryMuscles[0]}`}
+                    {" · "}{exercise.equipment}
+                  </p>
+                </div>
+                <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
+              </button>
+            );
+          })}
         </div>
       </div>
     );
@@ -378,6 +542,15 @@ export default function ProfileScreen({ profile, history, onProfileUpdate, onLog
         </div>
       </div>
 
+      {/* Quick action */}
+      <Button
+        onClick={onStartWorkout}
+        className="w-full h-12 gym-gradient text-white font-semibold rounded-xl hover:opacity-90 mb-4"
+      >
+        <Plus className="w-4 h-4 mr-2" />
+        Start Workout
+      </Button>
+
       {/* Menu items */}
       <div className="space-y-1 mb-6">
         <button
@@ -386,7 +559,7 @@ export default function ProfileScreen({ profile, history, onProfileUpdate, onLog
         >
           <Dumbbell className="w-5 h-5 text-[#6C5CE7]" />
           <span className="flex-1 text-left font-medium text-sm">Exercise Library</span>
-          <span className="text-xs text-muted-foreground mr-1">{EXERCISE_DATABASE.length} exercises</span>
+          <span className="text-xs text-muted-foreground mr-1">{allExercises.length} exercises</span>
           <ChevronRight className="w-4 h-4 text-muted-foreground" />
         </button>
         <button

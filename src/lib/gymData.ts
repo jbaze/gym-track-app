@@ -239,10 +239,31 @@ export const WORKOUT_TEMPLATES: Record<WorkoutType, string[]> = {
   Custom: [],
 };
 
+// ---------- CUSTOM EXERCISES ----------
+
+const CUSTOM_EXERCISES_KEY = "gymtrack_custom_exercises";
+
+export function loadCustomExercises(): Exercise[] {
+  try {
+    const raw = localStorage.getItem(CUSTOM_EXERCISES_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveCustomExercises(exercises: Exercise[]): void {
+  localStorage.setItem(CUSTOM_EXERCISES_KEY, JSON.stringify(exercises));
+}
+
+export function getAllExercises(): Exercise[] {
+  return [...EXERCISE_DATABASE, ...loadCustomExercises()];
+}
+
 // ---------- HELPER FUNCTIONS ----------
 
 export function getExerciseById(id: string): Exercise | undefined {
-  return EXERCISE_DATABASE.find((e) => e.id === id);
+  return getAllExercises().find((e) => e.id === id);
 }
 
 export function getExercisesForWorkout(type: WorkoutType): WorkoutExercise[] {
