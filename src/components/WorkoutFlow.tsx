@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import {
   X, Plus, Minus, ChevronDown, ChevronUp, Search, Check, ArrowLeft,
   Sparkles, SkipForward, Trophy, Clock, Dumbbell, Save, Star,
-  ArrowUp, ArrowDown, Pause, Play, RefreshCw,
+  GripVertical, Pause, Play, RefreshCw,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
@@ -435,6 +435,14 @@ export default function WorkoutFlow({ profile, initialType, onComplete, onCancel
   const [interExRestStartedAt, setInterExRestStartedAt] = useState(0);
   const [interExNextIdx, setInterExNextIdx] = useState(0);
 
+  // Drag-and-drop reorder
+  const [dragSrcIdx, setDragSrcIdx] = useState<number | null>(null);
+  const [dragTargetIdx, setDragTargetIdx] = useState<number | null>(null);
+  const exerciseListRef = useRef<HTMLDivElement>(null);
+
+  // Delete confirmation
+  const [confirmDeleteIdx, setConfirmDeleteIdx] = useState<number | null>(null);
+
   // Custom plans
   const [plans, setPlans] = useState<WorkoutPlan[]>(() => loadWorkoutPlans());
   const [createPlanMode, setCreatePlanMode] = useState(false);
@@ -767,6 +775,36 @@ export default function WorkoutFlow({ profile, initialType, onComplete, onCancel
     setExercises(updated);
   };
 
+  // ---------- DRAG-AND-DROP ----------
+  const handleDragStart = (idx: number, e: React.PointerEvent) => {
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    setDragSrcIdx(idx);
+    setDragTargetIdx(idx);
+  };
+
+  const handleDragMove = (e: React.PointerEvent) => {
+    if (dragSrcIdx === null || !exerciseListRef.current) return;
+    const items = exerciseListRef.current.querySelectorAll("[data-ex-item]");
+    for (let i = 0; i < items.length; i++) {
+      const rect = items[i].getBoundingClientRect();
+      if (e.clientY >= rect.top && e.clientY <= rect.bottom) {
+        setDragTargetIdx(i);
+        break;
+      }
+    }
+  };
+
+  const handleDragEnd = () => {
+    if (dragSrcIdx !== null && dragTargetIdx !== null && dragSrcIdx !== dragTargetIdx) {
+      const updated = [...exercises];
+      const [moved] = updated.splice(dragSrcIdx, 1);
+      updated.splice(dragTargetIdx, 0, moved);
+      setExercises(updated);
+    }
+    setDragSrcIdx(null);
+    setDragTargetIdx(null);
+  };
+
   // ---------- REPLACE EXERCISE ----------
   const handleReplaceExercise = (exercise: Exercise) => {
     if (showReplaceFor === null) return;
@@ -965,29 +1003,30 @@ export default function WorkoutFlow({ profile, initialType, onComplete, onCancel
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-4 pb-24 gym-scrollbar">
+        <div
+          ref={exerciseListRef}
+          className="flex-1 overflow-y-auto px-4 pb-24 gym-scrollbar"
+          onPointerMove={handleDragMove}
+          onPointerUp={handleDragEnd}
+        >
           {exercises.map((ex, idx) => {
             const lastPerf = getLastPerformance(ex.exerciseId, history);
             const isExpanded = expandedExercise === ex.exerciseId;
+            const isDragging = dragSrcIdx === idx;
+            const isDragTarget = dragTargetIdx === idx && dragSrcIdx !== null && dragSrcIdx !== idx;
             return (
-              <div key={ex.exerciseId + idx} className="border-b border-white/5 py-3">
+              <div
+                key={ex.exerciseId + idx}
+                data-ex-item
+                className={`border-b border-white/5 py-3 transition-all ${isDragging ? "opacity-40" : ""} ${isDragTarget ? "border-t-2 border-t-[#6C5CE7]" : ""}`}
+              >
                 <div className="flex items-center gap-2">
-                  {/* Reorder buttons */}
-                  <div className="flex flex-col gap-0.5">
-                    <button
-                      onClick={() => handleMoveUp(idx)}
-                      disabled={idx === 0}
-                      className="w-6 h-6 flex items-center justify-center text-muted-foreground disabled:opacity-20 active:text-white transition-colors"
-                    >
-                      <ArrowUp className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      onClick={() => handleMoveDown(idx)}
-                      disabled={idx === exercises.length - 1}
-                      className="w-6 h-6 flex items-center justify-center text-muted-foreground disabled:opacity-20 active:text-white transition-colors"
-                    >
-                      <ArrowDown className="w-3.5 h-3.5" />
-                    </button>
+                  {/* Drag handle */}
+                  <div
+                    onPointerDown={(e) => handleDragStart(idx, e)}
+                    className="touch-none cursor-grab active:cursor-grabbing p-1 text-muted-foreground/50 hover:text-muted-foreground transition-colors shrink-0"
+                  >
+                    <GripVertical className="w-4 h-4" />
                   </div>
 
                   <div className="w-10 h-10 rounded-lg bg-[#6C5CE7]/10 flex items-center justify-center shrink-0">
@@ -995,7 +1034,10 @@ export default function WorkoutFlow({ profile, initialType, onComplete, onCancel
                   </div>
                   <button
                     className="flex-1 text-left min-w-0"
-                    onClick={() => setExpandedExercise(isExpanded ? null : ex.exerciseId)}
+                    onClick={() => {
+                      setConfirmDeleteIdx(null);
+                      setExpandedExercise(isExpanded ? null : ex.exerciseId);
+                    }}
                   >
                     <p className="font-medium text-sm truncate">{ex.exercise.name}</p>
                     <p className="text-xs text-muted-foreground">
@@ -1003,20 +1045,43 @@ export default function WorkoutFlow({ profile, initialType, onComplete, onCancel
                     </p>
                   </button>
                   <button
-                    onClick={() => setExpandedExercise(isExpanded ? null : ex.exerciseId)}
+                    onClick={() => {
+                      setConfirmDeleteIdx(null);
+                      setExpandedExercise(isExpanded ? null : ex.exerciseId);
+                    }}
                     className="touch-target flex items-center justify-center shrink-0"
                   >
                     {isExpanded ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
                   </button>
                   <button
-                    onClick={() => handleRemoveExercise(idx)}
+                    onClick={() => setConfirmDeleteIdx(confirmDeleteIdx === idx ? null : idx)}
                     className="touch-target flex items-center justify-center shrink-0"
                   >
                     <X className="w-4 h-4 text-red-400" />
                   </button>
                 </div>
+
+                {/* Delete confirmation bar */}
+                {confirmDeleteIdx === idx && (
+                  <div className="flex items-center gap-3 mt-2 ml-8 bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2">
+                    <p className="flex-1 text-xs text-red-400">Remove {ex.exercise.name}?</p>
+                    <button
+                      onClick={() => { handleRemoveExercise(idx); setConfirmDeleteIdx(null); }}
+                      className="text-xs font-semibold text-red-400 px-2 py-1 active:opacity-70"
+                    >
+                      Remove
+                    </button>
+                    <button
+                      onClick={() => setConfirmDeleteIdx(null)}
+                      className="text-xs text-muted-foreground px-2 py-1 active:opacity-70"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                )}
+
                 {isExpanded && (
-                  <div className="mt-3 ml-[68px] space-y-3">
+                  <div className="mt-3 ml-8 space-y-3">
                     {/* Last performance */}
                     {lastPerf ? (
                       <div className="bg-white/5 rounded-lg p-2.5">
@@ -1089,6 +1154,15 @@ export default function WorkoutFlow({ profile, initialType, onComplete, onCancel
                         </div>
                       </div>
                     </div>
+
+                    {/* Replace button */}
+                    <button
+                      onClick={() => setShowReplaceFor(idx)}
+                      className="flex items-center gap-1.5 text-xs text-muted-foreground bg-white/5 rounded-lg px-3 py-2 active:bg-white/10 transition-colors"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" />
+                      Replace Exercise
+                    </button>
                   </div>
                 )}
               </div>
@@ -1131,6 +1205,15 @@ export default function WorkoutFlow({ profile, initialType, onComplete, onCancel
             onAdd={handleAddExercise}
             onClose={() => setShowLibrary(false)}
             existingIds={exercises.map((e) => e.exerciseId)}
+          />
+        )}
+
+        {showReplaceFor !== null && (
+          <ExerciseLibrary
+            onAdd={handleReplaceExercise}
+            onClose={() => setShowReplaceFor(null)}
+            existingIds={[]}
+            replaceMode
           />
         )}
       </div>

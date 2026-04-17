@@ -27,7 +27,14 @@ export default function Index() {
   const [profileLoading, setProfileLoading] = useState(false);
 
   const [screen, setScreen] = useState<AppScreen>("main");
-  const [activeTab, setActiveTab] = useState<Tab>("home");
+  const [activeTab, setActiveTab] = useState<Tab>(
+    () => (localStorage.getItem("gymtrack_active_tab") as Tab) || "home"
+  );
+
+  const handleSetActiveTab = useCallback((tab: Tab) => {
+    localStorage.setItem("gymtrack_active_tab", tab);
+    setActiveTab(tab);
+  }, []);
   const [history, setHistory] = useState<CompletedWorkout[]>(loadWorkoutHistory());
   const [workoutType, setWorkoutType] = useState<WorkoutType | undefined>();
   const [resumeWorkout, setResumeWorkout] = useState<ActiveWorkout | null>(null);
@@ -69,10 +76,15 @@ export default function Index() {
       if (session) loadSupabaseProfile();
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session);
       if (session) {
-        loadSupabaseProfile();
+        // Only do a full profile reload on first sign-in — not on token refresh,
+        // which fires when the user returns to a backgrounded tab and would reset
+        // the active workout screen.
+        if (event === "SIGNED_IN" || event === "INITIAL_SESSION") {
+          loadSupabaseProfile();
+        }
       } else {
         setProfile(null);
         setScreen("main");
@@ -113,8 +125,8 @@ export default function Index() {
     setResumeWorkout(null);
     setCurrentStreak(getCurrentStreak());
     setScreen("main");
-    setActiveTab("home");
-  }, [history]);
+    handleSetActiveTab("home");
+  }, [history, handleSetActiveTab]);
 
   const handleWorkoutCancel = useCallback(() => {
     saveActiveWorkout(null);
@@ -197,7 +209,7 @@ export default function Index() {
               return (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
+                  onClick={() => handleSetActiveTab(tab.id)}
                   className={`flex flex-col items-center gap-0.5 py-1.5 px-4 rounded-xl transition-all touch-target ${
                     isActive ? "text-[#6C5CE7]" : "text-muted-foreground"
                   }`}
