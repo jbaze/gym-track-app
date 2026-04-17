@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Home, ClockArrowUp, TrendingUp, UserRound } from "lucide-react";
 import { Session } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
@@ -25,6 +25,10 @@ export default function Index() {
   const [authLoading, setAuthLoading] = useState(true);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [profileLoading, setProfileLoading] = useState(false);
+  // Tracks whether the profile has been loaded at least once for this session.
+  // Prevents tab-focus / token-refresh auth events from re-running loadSupabaseProfile
+  // and resetting the active screen.
+  const profileLoadedRef = useRef(false);
 
   const [screen, setScreen] = useState<AppScreen>("main");
   const [activeTab, setActiveTab] = useState<Tab>(
@@ -65,6 +69,7 @@ export default function Index() {
         createdAt: new Date(dbProfile.created_at).getTime(),
       };
       setProfile(mapped);
+      profileLoadedRef.current = true;
       // Restore in-progress workout first — takes priority over the normal home screen
       const active = loadActiveWorkout();
       if (active) {
@@ -75,6 +80,7 @@ export default function Index() {
       }
     } else {
       setProfile(null);
+      profileLoadedRef.current = false;
       setScreen("onboarding");
     }
     setProfileLoading(false);
@@ -90,13 +96,15 @@ export default function Index() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session);
       if (session) {
-        // Only do a full profile reload on first sign-in — not on token refresh,
-        // which fires when the user returns to a backgrounded tab and would reset
-        // the active workout screen.
-        if (event === "SIGNED_IN" || event === "INITIAL_SESSION") {
+        // Only load the profile when there is genuinely no profile yet.
+        // This prevents any auth event (SIGNED_IN, TOKEN_REFRESHED, INITIAL_SESSION,
+        // or browser-visibility wakeup) from resetting the active screen after the
+        // first successful load.
+        if (!profileLoadedRef.current) {
           loadSupabaseProfile();
         }
       } else {
+        profileLoadedRef.current = false;
         setProfile(null);
         setScreen("main");
       }
@@ -150,6 +158,7 @@ export default function Index() {
   }, []);
 
   const handleLogout = useCallback(async () => {
+    profileLoadedRef.current = false;
     await supabase.auth.signOut();
     setProfile(null);
     setSession(null);

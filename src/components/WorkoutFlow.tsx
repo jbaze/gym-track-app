@@ -307,16 +307,18 @@ function ExerciseLibrary({ onAdd, onClose, existingIds, replaceMode = false }: {
           </div>
         </div>
 
-        {/* Add / Replace button */}
-        <div className="p-4 border-t border-white/5">
+        {/* Add / Replace button — sticky so it's always visible without scrolling */}
+        <div className="sticky bottom-0 bg-background p-4 border-t border-white/5">
           {alreadyAdded ? (
-            <p className="text-center text-sm text-muted-foreground py-2">Already in your workout</p>
+            <div className="h-14 flex items-center justify-center bg-white/5 rounded-xl">
+              <p className="text-sm text-muted-foreground">Already in your workout</p>
+            </div>
           ) : (
             <Button
               onClick={() => { onAdd(detail); onClose(); }}
               className="w-full h-14 gym-gradient text-white font-bold text-base rounded-xl hover:opacity-90"
             >
-              {replaceMode ? <><RefreshCw className="w-5 h-5 mr-2" />Replace with this</> : <><Plus className="w-5 h-5 mr-2" />Add to Workout</>}
+              {replaceMode ? <><RefreshCw className="w-5 h-5 mr-2" />Replace with this</> : <><Plus className="w-5 h-5 mr-2" />Add to Plan</>}
             </Button>
           )}
         </div>
