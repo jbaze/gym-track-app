@@ -64,6 +64,20 @@ function SetSpinner({
   );
 }
 
+// ---------- AUDIO BEEP ----------
+function playBeep(ctx: AudioContext, freq: number, dur: number, vol = 0.4) {
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.type = "sine";
+  osc.frequency.value = freq;
+  gain.gain.setValueAtTime(vol, ctx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur);
+  osc.start(ctx.currentTime);
+  osc.stop(ctx.currentTime + dur);
+}
+
 // ---------- REST TIMER CIRCLE ----------
 function RestTimerCircle({ duration, startedAt, onSkip, nextExercise, lastSet, suggestion, unit }: {
   duration: number; startedAt: number; onSkip: () => void;
@@ -72,15 +86,34 @@ function RestTimerCircle({ duration, startedAt, onSkip, nextExercise, lastSet, s
 }) {
   const [remaining, setRemaining] = useState(duration);
   const circumference = 2 * Math.PI * 90;
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const lastBeepedRef = useRef<number>(-1);
 
   useEffect(() => {
     const interval = setInterval(() => {
       const elapsed = (Date.now() - startedAt) / 1000;
       const r = Math.max(0, duration - elapsed);
       setRemaining(r);
-      if (r <= 0) {
-        onSkip();
+
+      // Countdown beeps at 5, 4, 3, 2, 1, 0
+      const countdownSec = Math.ceil(r);
+      if (r <= 5 && countdownSec !== lastBeepedRef.current) {
+        lastBeepedRef.current = countdownSec;
+        if (!audioCtxRef.current) {
+          audioCtxRef.current = new AudioContext();
+        }
+        const ctx = audioCtxRef.current;
+        if (countdownSec === 0) {
+          // Done — two rising beeps
+          playBeep(ctx, 880, 0.15);
+          setTimeout(() => playBeep(ctx, 1100, 0.25), 180);
+        } else {
+          // Tick — short single beep, gets slightly higher as it nears zero
+          playBeep(ctx, 660 + (5 - countdownSec) * 30, 0.08);
+        }
       }
+
+      if (r <= 0) onSkip();
     }, 100);
     return () => clearInterval(interval);
   }, [duration, startedAt, onSkip]);
@@ -89,6 +122,7 @@ function RestTimerCircle({ duration, startedAt, onSkip, nextExercise, lastSet, s
   const offset = circumference * (1 - progress);
   const mins = Math.floor(remaining / 60);
   const secs = Math.floor(remaining % 60);
+  const isCountdown = remaining <= 5 && remaining > 0;
 
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center px-6 animate-fade-in">
@@ -100,16 +134,19 @@ function RestTimerCircle({ duration, startedAt, onSkip, nextExercise, lastSet, s
           <circle cx="100" cy="100" r="90" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="8" />
           <circle
             cx="100" cy="100" r="90" fill="none"
-            stroke="#6C5CE7" strokeWidth="8" strokeLinecap="round"
+            stroke={isCountdown ? "#00E676" : "#6C5CE7"} strokeWidth="8" strokeLinecap="round"
             strokeDasharray={circumference}
             strokeDashoffset={offset}
             className="transition-all duration-100"
           />
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-5xl font-bold tabular-nums">
+          <span className={`text-5xl font-bold tabular-nums transition-colors ${isCountdown ? "text-[#00E676]" : ""}`}>
             {mins}:{secs.toString().padStart(2, "0")}
           </span>
+          {isCountdown && (
+            <span className="text-xs text-[#00E676] font-semibold mt-1 animate-pulse">GET READY</span>
+          )}
         </div>
       </div>
 
