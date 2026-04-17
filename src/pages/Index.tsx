@@ -45,11 +45,22 @@ export default function Index() {
     setProfileLoading(true);
     const dbProfile = await fetchProfile();
     if (dbProfile) {
+      const fitnessGoalMap: Record<string, UserProfile["fitnessGoal"]> = {
+        strength: "Strength",
+        hypertrophy: "Hypertrophy",
+        endurance: "Endurance",
+        weight_loss: "Weight Loss",
+      };
+      const expLevelMap: Record<string, UserProfile["experienceLevel"]> = {
+        beginner: "Beginner",
+        intermediate: "Intermediate",
+        advanced: "Advanced",
+      };
       const mapped: UserProfile = {
         name: dbProfile.name ?? "Athlete",
-        fitnessGoal: (dbProfile.fitness_goal as UserProfile["fitnessGoal"]) ?? "Hypertrophy",
-        experienceLevel: (dbProfile.experience_level as UserProfile["experienceLevel"]) ?? "Intermediate",
-        weightUnit: dbProfile.weight_unit as "kg" | "lbs",
+        fitnessGoal: fitnessGoalMap[dbProfile.fitness_goal] ?? "Hypertrophy",
+        experienceLevel: expLevelMap[dbProfile.experience_level] ?? "Intermediate",
+        weightUnit: (dbProfile.weight_unit as "kg" | "lbs") ?? "kg",
         restTimerDuration: dbProfile.default_rest_seconds ?? 90,
         createdAt: new Date(dbProfile.created_at).getTime(),
       };
