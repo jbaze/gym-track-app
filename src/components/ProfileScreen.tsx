@@ -544,7 +544,7 @@ export default function ProfileScreen({ profile, history, onProfileUpdate, onLog
 
       {/* Quick action */}
       <Button
-        onClick={onStartWorkout}
+        onClick={() => onStartWorkout()}
         className="w-full h-12 gym-gradient text-white font-semibold rounded-xl hover:opacity-90 mb-4"
       >
         <Plus className="w-4 h-4 mr-2" />

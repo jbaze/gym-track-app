@@ -13,6 +13,7 @@ import {
   getExercisesForWorkout, generateId, formatTime, formatDuration,
   getAISuggestion, loadWorkoutHistory, saveActiveWorkout, loadActiveWorkout,
   saveWorkoutPlans, loadWorkoutPlans, getAllExercises,
+  saveDraftPlan, loadDraftPlan, clearDraftPlan, DraftPlan,
 } from "@/lib/gymData";
 
 const CELEBRATION_IMAGE = "https://mgx-backend-cdn.metadl.com/generate/images/1042595/2026-04-16/mwqbdliaafbq/workout-complete-celebration.png";
@@ -201,6 +202,7 @@ function ExerciseLibrary({ onAdd, onClose, existingIds, replaceMode = false }: {
 }) {
   const [search, setSearch] = useState("");
   const [muscleFilter, setMuscleFilter] = useState<string | null>(null);
+  const [detail, setDetail] = useState<Exercise | null>(null);
 
   const filtered = getAllExercises().filter((e) => {
     if (!replaceMode && existingIds.includes(e.id)) return false;
@@ -208,6 +210,119 @@ function ExerciseLibrary({ onAdd, onClose, existingIds, replaceMode = false }: {
     if (muscleFilter && e.primaryMuscle !== muscleFilter) return false;
     return true;
   });
+
+  // ---------- EXERCISE DETAIL VIEW ----------
+  if (detail) {
+    const alreadyAdded = !replaceMode && existingIds.includes(detail.id);
+    return (
+      <div className="fixed inset-0 z-50 bg-background flex flex-col animate-slide-up">
+        <div className="flex items-center gap-3 px-4 py-3 border-b border-white/5">
+          <button onClick={() => setDetail(null)} className="touch-target flex items-center justify-center">
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+          <h2 className="text-lg font-semibold flex-1 truncate">{detail.name}</h2>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-4 py-4 gym-scrollbar space-y-4">
+          {/* Animated exercise illustration */}
+          <div className="bg-card border border-white/5 rounded-2xl overflow-hidden h-44 flex items-center justify-center relative">
+            <div className="absolute inset-0 flex items-center justify-center">
+              {/* Animated SVG stick-figure representing the exercise */}
+              <svg viewBox="0 0 120 120" className="w-28 h-28" style={{ filter: "drop-shadow(0 0 12px rgba(108,92,231,0.3))" }}>
+                {/* Body glow */}
+                <circle cx="60" cy="22" r="12" fill="#6C5CE7" opacity="0.15" className="animate-pulse" />
+                {/* Head */}
+                <circle cx="60" cy="22" r="8" fill="none" stroke="#6C5CE7" strokeWidth="2.5" />
+                {/* Torso */}
+                <line x1="60" y1="30" x2="60" y2="60" stroke="#6C5CE7" strokeWidth="2.5" strokeLinecap="round" />
+                {/* Arms — animate based on equipment */}
+                {detail.isBodyweight ? (
+                  <>
+                    <line x1="60" y1="40" x2="35" y2="55" stroke="#A29BFE" strokeWidth="2" strokeLinecap="round">
+                      <animateTransform attributeName="transform" type="rotate" values="0 60 40;-15 60 40;0 60 40" dur="1.2s" repeatCount="indefinite" />
+                    </line>
+                    <line x1="60" y1="40" x2="85" y2="55" stroke="#A29BFE" strokeWidth="2" strokeLinecap="round">
+                      <animateTransform attributeName="transform" type="rotate" values="0 60 40;15 60 40;0 60 40" dur="1.2s" repeatCount="indefinite" />
+                    </line>
+                  </>
+                ) : (
+                  <>
+                    <line x1="60" y1="38" x2="30" y2="45" stroke="#A29BFE" strokeWidth="2" strokeLinecap="round">
+                      <animateTransform attributeName="transform" type="rotate" values="0 60 38;20 60 38;0 60 38" dur="1.4s" repeatCount="indefinite" />
+                    </line>
+                    <line x1="60" y1="38" x2="90" y2="45" stroke="#A29BFE" strokeWidth="2" strokeLinecap="round">
+                      <animateTransform attributeName="transform" type="rotate" values="0 60 38;-20 60 38;0 60 38" dur="1.4s" repeatCount="indefinite" />
+                    </line>
+                    {/* Barbell / weight */}
+                    <rect x="18" y="42" width="12" height="5" rx="2" fill="#FFD93D" opacity="0.8" />
+                    <rect x="90" y="42" width="12" height="5" rx="2" fill="#FFD93D" opacity="0.8" />
+                    <line x1="30" y1="44" x2="90" y2="44" stroke="#FFD93D" strokeWidth="2" opacity="0.8" />
+                  </>
+                )}
+                {/* Legs */}
+                <line x1="60" y1="60" x2="44" y2="88" stroke="#6C5CE7" strokeWidth="2.5" strokeLinecap="round">
+                  <animateTransform attributeName="transform" type="rotate" values="0 60 60;8 60 60;0 60 60" dur="1.2s" repeatCount="indefinite" />
+                </line>
+                <line x1="60" y1="60" x2="76" y2="88" stroke="#6C5CE7" strokeWidth="2.5" strokeLinecap="round">
+                  <animateTransform attributeName="transform" type="rotate" values="0 60 60;-8 60 60;0 60 60" dur="1.2s" repeatCount="indefinite" />
+                </line>
+                {/* Feet */}
+                <line x1="44" y1="88" x2="36" y2="92" stroke="#6C5CE7" strokeWidth="2" strokeLinecap="round" />
+                <line x1="76" y1="88" x2="84" y2="92" stroke="#6C5CE7" strokeWidth="2" strokeLinecap="round" />
+              </svg>
+            </div>
+            <div className="absolute bottom-3 left-3">
+              <span className="text-[10px] bg-[#6C5CE7]/20 text-[#A29BFE] px-2 py-1 rounded-full font-medium">
+                {detail.equipment}
+              </span>
+            </div>
+            {detail.isBodyweight && (
+              <div className="absolute bottom-3 right-3">
+                <span className="text-[10px] bg-[#00E676]/20 text-[#00E676] px-2 py-1 rounded-full font-medium">
+                  Bodyweight
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* Muscles */}
+          <div className="bg-card border border-white/5 rounded-xl p-4 space-y-3">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Muscles</p>
+            <div className="flex flex-wrap gap-2">
+              <span className="text-xs bg-[#6C5CE7]/15 text-[#A29BFE] px-2.5 py-1 rounded-full font-medium">
+                {detail.primaryMuscle} (primary)
+              </span>
+              {detail.secondaryMuscles.map((m) => (
+                <span key={m} className="text-xs bg-white/5 text-muted-foreground px-2.5 py-1 rounded-full">
+                  {m}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          {/* Description */}
+          <div className="bg-card border border-white/5 rounded-xl p-4 space-y-2">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">How to Perform</p>
+            <p className="text-sm text-white/80 leading-relaxed">{detail.description}</p>
+          </div>
+        </div>
+
+        {/* Add / Replace button */}
+        <div className="p-4 border-t border-white/5">
+          {alreadyAdded ? (
+            <p className="text-center text-sm text-muted-foreground py-2">Already in your workout</p>
+          ) : (
+            <Button
+              onClick={() => { onAdd(detail); onClose(); }}
+              className="w-full h-14 gym-gradient text-white font-bold text-base rounded-xl hover:opacity-90"
+            >
+              {replaceMode ? <><RefreshCw className="w-5 h-5 mr-2" />Replace with this</> : <><Plus className="w-5 h-5 mr-2" />Add to Workout</>}
+            </Button>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-50 bg-background flex flex-col animate-slide-up">
@@ -257,7 +372,7 @@ function ExerciseLibrary({ onAdd, onClose, existingIds, replaceMode = false }: {
         {filtered.map((exercise) => (
           <button
             key={exercise.id}
-            onClick={() => { onAdd(exercise); onClose(); }}
+            onClick={() => setDetail(exercise)}
             className="w-full flex items-center gap-3 py-3 border-b border-white/5 text-left active:bg-white/5 transition-colors"
           >
             <div className="w-10 h-10 rounded-lg bg-[#6C5CE7]/10 flex items-center justify-center shrink-0">
@@ -269,10 +384,7 @@ function ExerciseLibrary({ onAdd, onClose, existingIds, replaceMode = false }: {
                 {exercise.primaryMuscle} · {exercise.equipment}
               </p>
             </div>
-            {replaceMode
-              ? <RefreshCw className="w-5 h-5 text-[#6C5CE7] shrink-0" />
-              : <Plus className="w-5 h-5 text-[#6C5CE7] shrink-0" />
-            }
+            <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0 -rotate-90" />
           </button>
         ))}
         {filtered.length === 0 && (
@@ -452,6 +564,9 @@ export default function WorkoutFlow({ profile, initialType, onComplete, onCancel
   const [planIcon, setPlanIcon] = useState(PLAN_ICONS[0]);
   const [planColor, setPlanColor] = useState(PLAN_COLORS[0]);
 
+  // Draft plan — auto-saved to localStorage so page refresh doesn't lose progress
+  const [hasDraft, setHasDraft] = useState(() => !!loadDraftPlan());
+
   const unit = profile.weightUnit;
   const history = loadWorkoutHistory();
 
@@ -492,6 +607,13 @@ export default function WorkoutFlow({ profile, initialType, onComplete, onCancel
       saveActiveWorkout({ ...activeWorkout, exercises, currentExerciseIndex: currentExIdx, totalPausedMs });
     }
   }, [activeWorkout, exercises, currentExIdx, totalPausedMs]);
+
+  // Auto-save draft plan while creating
+  useEffect(() => {
+    if (createPlanMode && step === "exercise-list") {
+      saveDraftPlan({ planName, planIcon, planColor, exercises });
+    }
+  }, [createPlanMode, step, planName, planIcon, planColor, exercises]);
 
   // Load AI suggestion for current exercise
   const currentExercise = exercises[currentExIdx];
@@ -556,6 +678,24 @@ export default function WorkoutFlow({ profile, initialType, onComplete, onCancel
     setStep("exercise-list");
   };
 
+  const handleResumeDraft = () => {
+    const draft = loadDraftPlan();
+    if (!draft) return;
+    setPlanName(draft.planName);
+    setPlanIcon(draft.planIcon);
+    setPlanColor(draft.planColor);
+    setExercises(draft.exercises);
+    setSelectedType("Custom");
+    setCreatePlanMode(true);
+    setHasDraft(false);
+    setStep("exercise-list");
+  };
+
+  const handleDiscardDraft = () => {
+    clearDraftPlan();
+    setHasDraft(false);
+  };
+
   const handleDeletePlan = (planId: string) => {
     const updated = plans.filter((p) => p.id !== planId);
     saveWorkoutPlans(updated);
@@ -598,6 +738,8 @@ export default function WorkoutFlow({ profile, initialType, onComplete, onCancel
     const updated = [...plans, newPlan];
     saveWorkoutPlans(updated);
     setPlans(updated);
+    clearDraftPlan();
+    setHasDraft(false);
     setCreatePlanMode(false);
     setStep("select-type");
   };
@@ -904,6 +1046,39 @@ export default function WorkoutFlow({ profile, initialType, onComplete, onCancel
           </button>
           <h1 className="text-xl font-bold">Choose Workout</h1>
         </div>
+
+        {/* Resume draft banner */}
+        {hasDraft && (() => {
+          const draft = loadDraftPlan();
+          return draft ? (
+            <div className="mb-4 bg-[#FFD93D]/10 border border-[#FFD93D]/20 rounded-xl p-4">
+              <div className="flex items-start gap-3">
+                <span className="text-2xl">{draft.planIcon}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-sm text-[#FFD93D]">Resume creating plan</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    "{draft.planName}" · {draft.exercises.length} exercise{draft.exercises.length !== 1 ? "s" : ""} added
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-2 mt-3">
+                <Button
+                  onClick={handleResumeDraft}
+                  className="flex-1 h-9 bg-[#FFD93D] text-black font-semibold text-sm rounded-xl hover:opacity-90"
+                >
+                  Resume
+                </Button>
+                <Button
+                  onClick={handleDiscardDraft}
+                  variant="outline"
+                  className="flex-1 h-9 border-white/10 text-muted-foreground text-sm rounded-xl hover:bg-white/5"
+                >
+                  Discard
+                </Button>
+              </div>
+            </div>
+          ) : null;
+        })()}
 
         {/* My Plans section */}
         {(plans.length > 0 || true) && (

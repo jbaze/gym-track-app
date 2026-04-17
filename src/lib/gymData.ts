@@ -260,6 +260,34 @@ export function getAllExercises(): Exercise[] {
   return [...EXERCISE_DATABASE, ...loadCustomExercises()];
 }
 
+// ---------- DRAFT PLAN ----------
+
+const DRAFT_PLAN_KEY = "gymtrack_draft_plan";
+
+export interface DraftPlan {
+  planName: string;
+  planIcon: string;
+  planColor: string;
+  exercises: WorkoutExercise[];
+}
+
+export function saveDraftPlan(draft: DraftPlan): void {
+  localStorage.setItem(DRAFT_PLAN_KEY, JSON.stringify(draft));
+}
+
+export function loadDraftPlan(): DraftPlan | null {
+  try {
+    const raw = localStorage.getItem(DRAFT_PLAN_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function clearDraftPlan(): void {
+  localStorage.removeItem(DRAFT_PLAN_KEY);
+}
+
 // ---------- HELPER FUNCTIONS ----------
 
 export function getExerciseById(id: string): Exercise | undefined {
