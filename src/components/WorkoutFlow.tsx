@@ -56,8 +56,8 @@ function SetSpinner({
         >
           <Minus className="w-4 h-4" />
         </button>
-        <span className="flex-1 text-2xl font-bold text-center tabular-nums">
-          {value}{unit ? <span className="text-sm text-muted-foreground ml-1">{unit}</span> : ""}
+        <span className="flex-1 text-xl font-bold text-center tabular-nums leading-none">
+          {value}{unit ? <span className="text-xs text-muted-foreground ml-0.5">{unit}</span> : ""}
         </span>
         <button
           onClick={() => onChange(value + step)}
