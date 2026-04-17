@@ -267,7 +267,7 @@ export function getExerciseById(id: string): Exercise | undefined {
 }
 
 export function getExercisesForWorkout(type: WorkoutType): WorkoutExercise[] {
-  const ids = WORKOUT_TEMPLATES[type];
+  const ids = WORKOUT_TEMPLATES[type] ?? [];
   return ids
     .map((id) => {
       const exercise = getExerciseById(id);

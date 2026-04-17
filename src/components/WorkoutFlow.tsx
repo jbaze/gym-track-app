@@ -406,7 +406,7 @@ export default function WorkoutFlow({ profile, initialType, onComplete, onCancel
   const [selectedType, setSelectedType] = useState<WorkoutType>(initialType || "Push");
   const [exercises, setExercises] = useState<WorkoutExercise[]>(() => {
     if (resumeWorkout) return resumeWorkout.exercises;
-    if (initialType) return getExercisesForWorkout(initialType);
+    if (initialType && initialType !== "Custom") return getExercisesForWorkout(initialType);
     return [];
   });
   const [activeWorkout, setActiveWorkout] = useState<ActiveWorkout | null>(resumeWorkout || null);
