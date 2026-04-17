@@ -386,7 +386,15 @@ export function saveActiveWorkout(workout: ActiveWorkout | null): void {
 
 export function loadActiveWorkout(): ActiveWorkout | null {
   const data = localStorage.getItem(KEYS.activeWorkout);
-  return data ? JSON.parse(data) : null;
+  if (!data) return null;
+  const w: ActiveWorkout = JSON.parse(data);
+  // Guard against corrupted totalPausedMs (old pause/resume bug set it to ~Date.now()).
+  // A valid paused duration can never exceed the elapsed wall-clock time.
+  const elapsed = Date.now() - w.startedAt;
+  if (w.totalPausedMs < 0 || w.totalPausedMs > elapsed) {
+    w.totalPausedMs = 0;
+  }
+  return w;
 }
 
 export function saveWorkoutHistory(workouts: CompletedWorkout[]): void {

@@ -47,23 +47,23 @@ function SetSpinner({
     );
   }
   return (
-    <div className="flex-1 bg-card border border-white/10 rounded-xl p-3">
+    <div className="flex-1 min-w-0 bg-card border border-white/10 rounded-xl p-3">
       <p className="text-[11px] text-muted-foreground font-medium text-center mb-2">{label}</p>
-      <div className="flex items-center justify-center gap-3">
+      <div className="flex items-center justify-between gap-1">
         <button
           onClick={() => onChange(Math.max(min, value - step))}
-          className="w-11 h-11 rounded-full bg-white/10 flex items-center justify-center active:bg-white/20 transition-colors touch-target"
+          className="w-10 h-10 shrink-0 rounded-full bg-white/10 flex items-center justify-center active:bg-white/20 transition-colors touch-target"
         >
-          <Minus className="w-5 h-5" />
+          <Minus className="w-4 h-4" />
         </button>
-        <span className="text-2xl font-bold w-20 text-center tabular-nums">
+        <span className="flex-1 text-2xl font-bold text-center tabular-nums">
           {value}{unit ? <span className="text-sm text-muted-foreground ml-1">{unit}</span> : ""}
         </span>
         <button
           onClick={() => onChange(value + step)}
-          className="w-11 h-11 rounded-full bg-white/10 flex items-center justify-center active:bg-white/20 transition-colors touch-target"
+          className="w-10 h-10 shrink-0 rounded-full bg-white/10 flex items-center justify-center active:bg-white/20 transition-colors touch-target"
         >
-          <Plus className="w-5 h-5" />
+          <Plus className="w-4 h-4" />
         </button>
       </div>
     </div>
