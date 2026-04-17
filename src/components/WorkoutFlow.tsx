@@ -643,8 +643,12 @@ export default function WorkoutFlow({ profile, initialType, onComplete, onCancel
 
   const handleResume = () => {
     if (pausedAtRef.current !== null) {
-      setTotalPausedMs((prev) => prev + (Date.now() - pausedAtRef.current!));
+      // Capture the duration into a local variable BEFORE nulling the ref.
+      // The updater function is called asynchronously by React, so reading
+      // pausedAtRef.current inside the updater would see null by then.
+      const pausedDuration = Date.now() - pausedAtRef.current;
       pausedAtRef.current = null;
+      setTotalPausedMs((prev) => prev + pausedDuration);
     }
     setIsPaused(false);
   };
