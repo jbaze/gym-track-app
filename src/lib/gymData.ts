@@ -41,6 +41,8 @@ export interface WorkoutExercise {
   defaultSets: number;
   defaultReps: number;
   loggedSets: LoggedSet[];
+  restSeconds?: number;        // per-exercise rest override (falls back to profile default)
+  setDurationSeconds?: number; // 0 = rep-based, >0 = timed set countdown
 }
 
 export interface ActiveWorkout {

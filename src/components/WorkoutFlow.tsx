@@ -364,7 +364,9 @@ export default function WorkoutFlow({ profile, initialType, onComplete, onCancel
   const [expandedExercise, setExpandedExercise] = useState<string | null>(null);
   const [completedWorkout, setCompletedWorkout] = useState<CompletedWorkout | null>(null);
   const [showUpcoming, setShowUpcoming] = useState(false);
+  const [timedRemaining, setTimedRemaining] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const autoLoggedRef = useRef(false);
 
   const unit = profile.weightUnit;
   const history = loadWorkoutHistory();
@@ -379,6 +381,24 @@ export default function WorkoutFlow({ profile, initialType, onComplete, onCancel
       return () => { if (timerRef.current) clearInterval(timerRef.current); };
     }
   }, [activeWorkout, step]);
+
+  // Timed set countdown + auto-log
+  useEffect(() => {
+    const setDuration = exercises[currentExIdx]?.setDurationSeconds ?? 0;
+    if (setDuration <= 0 || step !== "active") return;
+    autoLoggedRef.current = false;
+    setTimedRemaining(setDuration);
+    const iv = setInterval(() => {
+      const remaining = Math.max(0, setDuration - (Date.now() - setStartedAt) / 1000);
+      setTimedRemaining(remaining);
+      if (remaining <= 0 && !autoLoggedRef.current) {
+        autoLoggedRef.current = true;
+        clearInterval(iv);
+        handleLogSet();
+      }
+    }, 100);
+    return () => clearInterval(iv);
+  }, [currentExIdx, setStartedAt, step]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Persist active workout
   useEffect(() => {
@@ -526,6 +546,10 @@ export default function WorkoutFlow({ profile, initialType, onComplete, onCancel
     setExercises(exercises.filter((_, i) => i !== idx));
   };
 
+  const handleUpdateExercise = (idx: number, update: Partial<WorkoutExercise>) => {
+    setExercises(exercises.map((ex, i) => (i === idx ? { ...ex, ...update } : ex)));
+  };
+
   // ---------- RENDER: TYPE SELECTOR ----------
   if (step === "select-type") {
     return (
@@ -611,21 +635,62 @@ export default function WorkoutFlow({ profile, initialType, onComplete, onCancel
                     <X className="w-4 h-4 text-red-400" />
                   </button>
                 </div>
-                {isExpanded && lastPerf && (
-                  <div className="mt-2 ml-[52px] bg-white/5 rounded-lg p-2.5">
-                    <p className="text-xs text-muted-foreground mb-1">Last Session</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {lastPerf.map((s, i) => (
-                        <span key={i} className="text-xs bg-white/5 rounded px-2 py-0.5">
-                          {s.weight > 0 ? `${s.weight}${unit} × ` : ""}{s.reps}
-                        </span>
-                      ))}
+                {isExpanded && (
+                  <div className="mt-3 ml-[52px] space-y-3">
+                    {/* Last performance */}
+                    {lastPerf ? (
+                      <div className="bg-white/5 rounded-lg p-2.5">
+                        <p className="text-xs text-muted-foreground mb-1">Last Session</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {lastPerf.map((s, i) => (
+                            <span key={i} className="text-xs bg-white/5 rounded px-2 py-0.5">
+                              {s.weight > 0 ? `${s.weight}${unit} × ` : ""}{s.reps}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">No previous data</p>
+                    )}
+
+                    {/* Timing settings */}
+                    <div className="grid grid-cols-2 gap-2">
+                      {/* Rest time */}
+                      <div className="bg-card border border-white/10 rounded-xl p-3 text-center">
+                        <p className="text-[11px] text-muted-foreground mb-2">Rest</p>
+                        <div className="flex items-center justify-center gap-2">
+                          <button
+                            onClick={() => handleUpdateExercise(idx, { restSeconds: Math.max(15, (ex.restSeconds ?? profile.restTimerDuration) - 15) })}
+                            className="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center font-bold text-sm active:bg-white/20"
+                          >−</button>
+                          <span className="text-sm font-bold tabular-nums w-12">
+                            {ex.restSeconds ?? profile.restTimerDuration}s
+                          </span>
+                          <button
+                            onClick={() => handleUpdateExercise(idx, { restSeconds: Math.min(300, (ex.restSeconds ?? profile.restTimerDuration) + 15) })}
+                            className="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center font-bold text-sm active:bg-white/20"
+                          >+</button>
+                        </div>
+                      </div>
+
+                      {/* Set timer */}
+                      <div className="bg-card border border-white/10 rounded-xl p-3 text-center">
+                        <p className="text-[11px] text-muted-foreground mb-2">Set Timer</p>
+                        <div className="flex items-center justify-center gap-2">
+                          <button
+                            onClick={() => handleUpdateExercise(idx, { setDurationSeconds: Math.max(0, (ex.setDurationSeconds ?? 0) - 5) })}
+                            className="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center font-bold text-sm active:bg-white/20"
+                          >−</button>
+                          <span className={`text-sm font-bold tabular-nums w-12 ${(ex.setDurationSeconds ?? 0) > 0 ? "text-[#6C5CE7]" : ""}`}>
+                            {(ex.setDurationSeconds ?? 0) === 0 ? "OFF" : `${ex.setDurationSeconds}s`}
+                          </span>
+                          <button
+                            onClick={() => handleUpdateExercise(idx, { setDurationSeconds: Math.min(300, (ex.setDurationSeconds ?? 0) + 5) })}
+                            className="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center font-bold text-sm active:bg-white/20"
+                          >+</button>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                )}
-                {isExpanded && !lastPerf && (
-                  <div className="mt-2 ml-[52px]">
-                    <p className="text-xs text-muted-foreground">No previous data</p>
                   </div>
                 )}
               </div>
@@ -668,10 +733,11 @@ export default function WorkoutFlow({ profile, initialType, onComplete, onCancel
     const nextEx = exercises[currentExIdx];
     const lastLoggedSet = nextEx?.loggedSets[nextEx.loggedSets.length - 1];
     const nextSuggestion = aiSuggestion;
+    const restDuration = nextEx?.restSeconds ?? profile.restTimerDuration;
 
     return (
       <RestTimerCircle
-        duration={profile.restTimerDuration}
+        duration={restDuration}
         startedAt={activeWorkout.restTimerStartedAt}
         onSkip={handleRestComplete}
         nextExercise={nextEx?.exercise.name || "Next Exercise"}
@@ -698,7 +764,10 @@ export default function WorkoutFlow({ profile, initialType, onComplete, onCancel
 
   const setsLogged = currentExercise.loggedSets.length;
   const totalSetsTarget = currentExercise.defaultSets;
-  const setTimerElapsed = formatTime(Date.now() - setStartedAt);
+  const isTimedSet = (currentExercise.setDurationSeconds ?? 0) > 0;
+  const setTimerDisplay = isTimedSet
+    ? formatTime(timedRemaining * 1000)
+    : formatTime(Date.now() - setStartedAt);
 
   return (
     <div className="min-h-screen bg-background flex flex-col animate-fade-in">
@@ -752,9 +821,10 @@ export default function WorkoutFlow({ profile, initialType, onComplete, onCancel
             <p className="text-sm font-medium">
               Set <span className="text-[#6C5CE7]">{setsLogged + 1}</span> of {totalSetsTarget}
             </p>
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <div className={`flex items-center gap-1.5 text-xs ${isTimedSet ? "text-[#6C5CE7] font-semibold" : "text-muted-foreground"}`}>
               <Clock className="w-3 h-3" />
-              <span className="tabular-nums">{setTimerElapsed}</span>
+              <span className="tabular-nums">{setTimerDisplay}</span>
+              {isTimedSet && <span className="text-[10px] text-muted-foreground">left</span>}
             </div>
           </div>
 
