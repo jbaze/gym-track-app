@@ -9,7 +9,9 @@ import {
   UserProfile, CompletedWorkout, Exercise,
   EXERCISE_DATABASE, MUSCLE_GROUPS, EQUIPMENT_TYPES,
   saveProfile, setOnboarded, getCurrentStreak, formatDuration,
+  upsertProfile,
 } from "@/lib/gymData";
+import { supabase } from "@/lib/supabase";
 
 interface ProfileScreenProps {
   profile: UserProfile;
@@ -45,7 +47,7 @@ export default function ProfileScreen({ profile, history, onProfileUpdate, onLog
     year: "numeric",
   });
 
-  const handleSaveSettings = () => {
+  const handleSaveSettings = async () => {
     const updated: UserProfile = {
       ...profile,
       fitnessGoal: editGoal,
@@ -55,6 +57,19 @@ export default function ProfileScreen({ profile, history, onProfileUpdate, onLog
     };
     saveProfile(updated);
     onProfileUpdate(updated);
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      await upsertProfile({
+        id: user.id,
+        name: updated.name,
+        fitness_goal: updated.fitnessGoal.toLowerCase().replace(" ", "_") as any,
+        experience_level: updated.experienceLevel.toLowerCase() as any,
+        weight_unit: updated.weightUnit,
+        default_rest_seconds: updated.restTimerDuration,
+      });
+    }
+
     setView("profile");
   };
 
